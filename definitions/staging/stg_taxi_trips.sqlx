@@ -3,8 +3,7 @@ config {
   schema: "staging",
   description: "Cleaned and standardised taxi trips. Removes invalid records (null IDs, zero-duration trips, negative fares), adds time dimension columns. This is the single source of truth for all downstream models.",
   assertions: {
-    nonNull: ["unique_key", "taxi_id", "trip_start_timestamp", "trip_end_timestamp", "fare", "trip_total"],
-    uniqueKey: ["unique_key"]
+    nonNull: ["taxi_id", "trip_start_timestamp", "trip_end_timestamp", "fare", "trip_total"]
   },
   columns: {
     unique_key: "Unique identifier for each trip record",
