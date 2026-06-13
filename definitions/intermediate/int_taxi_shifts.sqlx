@@ -1,0 +1,63 @@
+config {
+  type: "table",
+  schema: "intermediate",
+  description: "Shift detection model using gap analysis. A new shift starts when there is a gap of 480+ minutes (8 hours) between consecutive trips for the same taxi. This intermediate table contains every detected shift with start/end times and duration — used by mart_taxi_overworkers.",
+  columns: {
+    taxi_id: "Hashed taxi medallion identifier",
+    shift_id: "Auto-generated shift sequence number per taxi",
+    shift_start: "Timestamp of the first trip in the shift",
+    shift_end: "Timestamp of the last trip end in the shift",
+    shift_duration_hours: "Total elapsed time of the shift in hours (end - start)",
+    trips_in_shift: "Number of individual trips within this shift",
+    active_driving_hours: "Sum of actual trip durations within the shift"
+  }
+}
+
+WITH trip_gaps AS (
+  SELECT
+    taxi_id,
+    trip_start_timestamp,
+    trip_end_timestamp,
+    trip_hours,
+    LAG(trip_end_timestamp) OVER (
+      PARTITION BY taxi_id ORDER BY trip_start_timestamp
+    ) AS prev_trip_end,
+    TIMESTAMP_DIFF(
+      trip_start_timestamp,
+      LAG(trip_end_timestamp) OVER (
+        PARTITION BY taxi_id ORDER BY trip_start_timestamp
+      ),
+      MINUTE
+    ) AS gap_minutes
+  FROM ${ref("stg_taxi_trips")}
+),
+
+shift_boundaries AS (
+  SELECT
+    *,
+    CASE
+      WHEN gap_minutes IS NULL OR gap_minutes >= 480 THEN 1
+      ELSE 0
+    END AS is_new_shift
+  FROM trip_gaps
+),
+
+shifts AS (
+  SELECT
+    *,
+    SUM(is_new_shift) OVER (
+      PARTITION BY taxi_id ORDER BY trip_start_timestamp
+    ) AS shift_id
+  FROM shift_boundaries
+)
+
+SELECT
+  taxi_id,
+  shift_id,
+  MIN(trip_start_timestamp) AS shift_start,
+  MAX(trip_end_timestamp) AS shift_end,
+  ROUND(TIMESTAMP_DIFF(MAX(trip_end_timestamp), MIN(trip_start_timestamp), MINUTE) / 60, 2) AS shift_duration_hours,
+  COUNT(*) AS trips_in_shift,
+  ROUND(SUM(trip_hours), 2) AS active_driving_hours
+FROM shifts
+GROUP BY taxi_id, shift_id

@@ -1,0 +1,35 @@
+config {
+  type: "table",
+  schema: "marts",
+  description: "Q1 — Taxi tip performance aggregated by taxi and month. Filtered to credit card payments only since cash tips are not recorded. Use Looker Studio date filter for 'last 3 months' and sort/limit for 'top 100' — no hardcoded filters applied here.",
+  assertions: {
+    nonNull: ["taxi_id", "trip_year", "trip_month"]
+  },
+  columns: {
+    taxi_id: "Hashed taxi medallion identifier",
+    trip_year: "Year of trips",
+    trip_month: "Month of trips (1-12)",
+    total_trips: "Total number of credit card trips for this taxi in this month",
+    total_tips: "Sum of all tips earned in USD",
+    avg_tip_per_trip: "Average tip per trip in USD",
+    total_fare: "Sum of base fares in USD",
+    tip_percentage: "Tips as a percentage of total fares — measures generosity received",
+    first_trip_date: "Earliest trip date in this period",
+    last_trip_date: "Latest trip date in this period"
+  }
+}
+
+SELECT
+  taxi_id,
+  trip_year,
+  trip_month,
+  COUNT(*) AS total_trips,
+  ROUND(SUM(tips), 2) AS total_tips,
+  ROUND(AVG(tips), 2) AS avg_tip_per_trip,
+  ROUND(SUM(fare), 2) AS total_fare,
+  ROUND(SAFE_DIVIDE(SUM(tips), SUM(fare)) * 100, 2) AS tip_percentage,
+  MIN(trip_date) AS first_trip_date,
+  MAX(trip_date) AS last_trip_date
+FROM ${ref("stg_taxi_trips")}
+WHERE payment_type = 'Credit Card'
+GROUP BY taxi_id, trip_year, trip_month

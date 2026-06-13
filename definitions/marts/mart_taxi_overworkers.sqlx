@@ -1,0 +1,34 @@
+config {
+  type: "table",
+  schema: "marts",
+  description: "Q2 — Taxi-level shift summary for overwork analysis. Aggregates all detected shifts per taxi including long shift counts, average/max durations, and total active hours. Use Looker Studio to filter for long shifts (>10hrs) and rank top 100.",
+  assertions: {
+    nonNull: ["taxi_id"]
+  },
+  columns: {
+    taxi_id: "Hashed taxi medallion identifier",
+    total_shifts: "Total number of detected shifts for this taxi",
+    total_long_shifts: "Number of shifts exceeding 10 hours duration",
+    avg_shift_duration_hours: "Average shift duration across all shifts in hours",
+    max_shift_duration_hours: "Longest single shift duration in hours",
+    total_trips: "Total trips across all shifts",
+    total_active_hours: "Total active driving time across all shifts",
+    long_shift_ratio: "Percentage of shifts that are classified as long (>10hrs)",
+    earliest_shift: "Date of the earliest recorded shift",
+    latest_shift: "Date of the most recent recorded shift"
+  }
+}
+
+SELECT
+  taxi_id,
+  COUNT(*) AS total_shifts,
+  COUNTIF(shift_duration_hours > 10) AS total_long_shifts,
+  ROUND(AVG(shift_duration_hours), 2) AS avg_shift_duration_hours,
+  ROUND(MAX(shift_duration_hours), 2) AS max_shift_duration_hours,
+  SUM(trips_in_shift) AS total_trips,
+  ROUND(SUM(active_driving_hours), 2) AS total_active_hours,
+  ROUND(SAFE_DIVIDE(COUNTIF(shift_duration_hours > 10), COUNT(*)) * 100, 2) AS long_shift_ratio,
+  MIN(shift_start) AS earliest_shift,
+  MAX(shift_end) AS latest_shift
+FROM ${ref("int_taxi_shifts")}
+GROUP BY taxi_id

@@ -1,0 +1,37 @@
+config {
+  type: "table",
+  schema: "marts",
+  description: "Q4 Bonus — Two actionable insights: (1) Revenue leakage from cash payments — estimates untracked tip revenue by comparing credit card tip rates to cash trip volumes, supporting a case for digital payment adoption. (2) Peak demand-supply gap — identifies hours and days where demand peaks but trip durations are longest, indicating undersupply of cabs and opportunity for fleet optimisation.",
+  columns: {
+    trip_year: "Year of trips",
+    trip_month: "Month of trips (1-12)",
+    trip_hour: "Hour of day (0-23)",
+    trip_day_of_week: "Day of week 1=Sunday to 7=Saturday",
+    payment_type: "Payment method — key dimension for revenue leakage analysis",
+    total_trips: "Total trip count for this time-payment combination",
+    avg_trip_miles: "Average trip distance in miles",
+    avg_fare: "Average base fare in USD",
+    avg_tip: "Average tip in USD — $0 for cash since tips are not recorded",
+    avg_duration_minutes: "Average trip duration in minutes — proxy for demand-supply gap",
+    total_revenue: "Sum of trip_total in USD",
+    total_tips: "Sum of tips in USD",
+    avg_tip_percentage: "Average tip as percentage of fare — credit card benchmark for leakage estimate"
+  }
+}
+
+SELECT
+  trip_year,
+  trip_month,
+  trip_hour,
+  trip_day_of_week,
+  payment_type,
+  COUNT(*) AS total_trips,
+  ROUND(AVG(trip_miles), 2) AS avg_trip_miles,
+  ROUND(AVG(fare), 2) AS avg_fare,
+  ROUND(AVG(tips), 2) AS avg_tip,
+  ROUND(AVG(trip_seconds / 60), 2) AS avg_duration_minutes,
+  ROUND(SUM(trip_total), 2) AS total_revenue,
+  ROUND(SUM(tips), 2) AS total_tips,
+  ROUND(SAFE_DIVIDE(SUM(tips), NULLIF(SUM(fare), 0)) * 100, 2) AS avg_tip_percentage
+FROM ${ref("stg_taxi_trips")}
+GROUP BY trip_year, trip_month, trip_hour, trip_day_of_week, payment_type

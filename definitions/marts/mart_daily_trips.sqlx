@@ -1,0 +1,38 @@
+config {
+  type: "table",
+  schema: "marts",
+  description: "Q3 — Daily trip aggregation with US holiday flag. Each row is one calendar day with trip counts, revenue, and whether it falls on a federal holiday. Use Looker Studio to compare holiday vs non-holiday averages.",
+  assertions: {
+    uniqueKey: ["trip_date"],
+    nonNull: ["trip_date", "total_trips"]
+  },
+  columns: {
+    trip_date: "Calendar date",
+    trip_year: "Year extracted from trip_date",
+    trip_month: "Month extracted from trip_date",
+    trip_day_of_week: "Day of week 1=Sunday to 7=Saturday",
+    total_trips: "Total number of trips on this date",
+    total_revenue: "Sum of trip_total in USD for this date",
+    avg_fare: "Average trip_total in USD for this date",
+    total_tips: "Sum of tips in USD for this date",
+    is_holiday: "TRUE if this date is a US federal holiday",
+    holiday_name: "Name of the holiday or NULL if not a holiday",
+    day_type: "Holiday or Non-Holiday classification"
+  }
+}
+
+SELECT
+  s.trip_date,
+  s.trip_year,
+  s.trip_month,
+  s.trip_day_of_week,
+  COUNT(*) AS total_trips,
+  ROUND(SUM(s.trip_total), 2) AS total_revenue,
+  ROUND(AVG(s.trip_total), 2) AS avg_fare,
+  ROUND(SUM(s.tips), 2) AS total_tips,
+  h.holiday_date IS NOT NULL AS is_holiday,
+  h.holiday_name,
+  CASE WHEN h.holiday_date IS NOT NULL THEN 'Holiday' ELSE 'Non-Holiday' END AS day_type
+FROM ${ref("stg_taxi_trips")} s
+LEFT JOIN ${ref("ref_us_holidays")} h ON s.trip_date = h.holiday_date
+GROUP BY s.trip_date, s.trip_year, s.trip_month, s.trip_day_of_week, h.holiday_date, h.holiday_name

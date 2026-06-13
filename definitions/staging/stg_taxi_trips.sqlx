@@ -1,0 +1,76 @@
+config {
+  type: "table",
+  schema: "staging",
+  description: "Cleaned and standardised taxi trips. Removes invalid records (null IDs, zero-duration trips, negative fares), adds time dimension columns. This is the single source of truth for all downstream models.",
+  assertions: {
+    nonNull: ["unique_key", "taxi_id", "trip_start_timestamp", "trip_end_timestamp", "fare", "trip_total"],
+    uniqueKey: ["unique_key"]
+  },
+  columns: {
+    unique_key: "Unique identifier for each trip record",
+    taxi_id: "Hashed taxi medallion identifier — consistent per cab but anonymised",
+    trip_start_timestamp: "Trip start time rounded to nearest 15 minutes",
+    trip_end_timestamp: "Trip end time rounded to nearest 15 minutes",
+    trip_seconds: "Duration of trip in seconds",
+    trip_hours: "Duration of trip in hours (calculated: trip_seconds / 3600)",
+    trip_miles: "Distance travelled in miles",
+    fare: "Base fare amount in USD",
+    tips: "Tip amount in USD — only recorded for credit card payments",
+    tolls: "Toll charges in USD",
+    extras: "Extra charges in USD",
+    trip_total: "Total amount charged (fare + tips + tolls + extras)",
+    payment_type: "Payment method: Credit Card, Cash, No Charge, etc.",
+    company: "Taxi company operating the vehicle",
+    pickup_community_area: "Chicago community area number for pickup location",
+    dropoff_community_area: "Chicago community area number for dropoff location",
+    pickup_latitude: "Pickup latitude coordinate",
+    pickup_longitude: "Pickup longitude coordinate",
+    dropoff_latitude: "Dropoff latitude coordinate",
+    dropoff_longitude: "Dropoff longitude coordinate",
+    trip_date: "Date of trip start (extracted from trip_start_timestamp)",
+    trip_hour: "Hour of trip start 0-23 (extracted from trip_start_timestamp)",
+    trip_day_of_week: "Day of week 1=Sunday to 7=Saturday (extracted from trip_start_timestamp)",
+    trip_month: "Month of trip start 1-12 (extracted from trip_start_timestamp)",
+    trip_year: "Year of trip start (extracted from trip_start_timestamp)"
+  }
+}
+
+SELECT
+  unique_key,
+  taxi_id,
+  trip_start_timestamp,
+  trip_end_timestamp,
+  trip_seconds,
+  ROUND(trip_seconds / 3600, 2) AS trip_hours,
+  trip_miles,
+  fare,
+  tips,
+  tolls,
+  extras,
+  trip_total,
+  payment_type,
+  company,
+  pickup_community_area,
+  dropoff_community_area,
+  pickup_latitude,
+  pickup_longitude,
+  dropoff_latitude,
+  dropoff_longitude,
+  EXTRACT(DATE FROM trip_start_timestamp) AS trip_date,
+  EXTRACT(HOUR FROM trip_start_timestamp) AS trip_hour,
+  EXTRACT(DAYOFWEEK FROM trip_start_timestamp) AS trip_day_of_week,
+  EXTRACT(MONTH FROM trip_start_timestamp) AS trip_month,
+  EXTRACT(YEAR FROM trip_start_timestamp) AS trip_year
+FROM
+  ${ref("taxi_trips")}
+WHERE
+  taxi_id IS NOT NULL
+  AND trip_start_timestamp IS NOT NULL
+  AND trip_end_timestamp IS NOT NULL
+  AND trip_seconds > 0
+  AND trip_seconds < 86400
+  AND trip_miles >= 0
+  AND fare >= 0
+  AND tips >= 0
+  AND trip_total > 0
+  AND trip_start_timestamp < trip_end_timestamp
